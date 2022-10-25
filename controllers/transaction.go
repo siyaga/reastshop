@@ -16,11 +16,6 @@ type TransactionController struct {
 	Db *gorm.DB
 }
 
-type BayarForm struct {
-	// declare variables
-	Bayar float64 `form:"inputbayar" validate:"required"`
-}
-
 func InitTransactionController() *TransactionController {
 	db := database.InitDb()
 	// gorm
@@ -67,7 +62,7 @@ func (controller *TransactionController) AddPostedTransaction(c *fiber.Ctx) erro
 		return c.SendStatus(400)
 	}
 	jumlahQuantity := product.Quantity - myform.Quantity
-	if jumlahQuantity <= 0 {
+	if jumlahQuantity < 0 {
 		return c.JSON(fiber.Map{
 			"message": "Stok Habis atau stok kecil",
 		})
@@ -94,7 +89,6 @@ func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 	idn, _ := strconv.Atoi(id)
-	var bayar BayarForm
 	var transaction models.Transaction
 	err := models.ReadTransactionById(controller.Db, &transaction, idn)
 	if err != nil {
@@ -107,13 +101,6 @@ func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 		return c.SendStatus(400)
 	}
 
-	var bayarhasil float64 = float64(bayar.Bayar) - float64(transaction.Total)
-
-	if bayarhasil <= 0 {
-		return c.JSON(fiber.Map{
-			"message": "Pembayaran tidak berhasil pastikan uanga anda cukup",
-		})
-	}
 	if transaction.Status == "Sudah Bayar" {
 		return c.JSON(fiber.Map{
 			"message": "Anda Sudah Membayar",
@@ -133,7 +120,7 @@ func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 	}
 
 	jumlah := product.Quantity - transaction.Quantity
-	if jumlah <= 0 {
+	if jumlah < 0 {
 		return c.JSON(fiber.Map{
 			"message": "Stok Habis",
 		})
