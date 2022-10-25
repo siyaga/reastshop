@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v4"
 	"gorm.io/gorm"
 
 	"lifedev/reastshop/database"
@@ -14,6 +14,11 @@ import (
 type TransactionController struct {
 	// declare variables
 	Db *gorm.DB
+}
+
+type BayarForm struct {
+	// declare variables
+	Bayar float64 `form:"inputbayar" validate:"required"`
 }
 
 func InitTransactionController() *TransactionController {
@@ -27,14 +32,16 @@ func InitTransactionController() *TransactionController {
 // routing
 // GET /transactions
 func (controller *TransactionController) DashboardTransaction(c *fiber.Ctx) error {
-	// load all products
-
+	// // load all products
+	// user := c.Locals("user").(*jwt.Token)
+	// claims := user.Claims.(jwt.MapClaims)
+	// iduser := claims["id"].(float64)
+	// var idu int = int(iduser)
 	var transactions []models.Transaction
 	err := models.ReadTransaction(controller.Db, &transactions)
 	if err != nil {
 		return c.SendStatus(500) // http 500 internal server error
 	}
-
 	return c.JSON(transactions)
 }
 
@@ -43,6 +50,10 @@ func (controller *TransactionController) AddPostedTransaction(c *fiber.Ctx) erro
 	//myform := new(models.Product)
 	id := c.Params("id")
 	idn, _ := strconv.Atoi(id)
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	iduser := claims["id"].(float64)
+	var idu int = int(iduser)
 
 	var product models.Product
 	err := models.ReadProductById(controller.Db, &product, idn)
@@ -61,6 +72,7 @@ func (controller *TransactionController) AddPostedTransaction(c *fiber.Ctx) erro
 			"message": "Stok Habis atau stok kecil",
 		})
 	}
+	myform.IdUser = idu
 	myform.IdProduck = product.Id
 	myform.Name = product.Name
 	myform.Image = product.Image
@@ -79,8 +91,10 @@ func (controller *TransactionController) AddPostedTransaction(c *fiber.Ctx) erro
 // POST /products/create
 func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 	//myform := new(models.Product)
+
 	id := c.Params("id")
 	idn, _ := strconv.Atoi(id)
+	var bayar BayarForm
 	var transaction models.Transaction
 	err := models.ReadTransactionById(controller.Db, &transaction, idn)
 	if err != nil {
@@ -91,6 +105,14 @@ func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 
 	if err := c.BodyParser(&myform); err != nil {
 		return c.SendStatus(400)
+	}
+
+	var bayarhasil float64 = float64(bayar.Bayar) - float64(transaction.Total)
+
+	if bayarhasil <= 0 {
+		return c.JSON(fiber.Map{
+			"message": "Pembayaran tidak berhasil pastikan uanga anda cukup",
+		})
 	}
 	if transaction.Status == "Sudah Bayar" {
 		return c.JSON(fiber.Map{
@@ -111,7 +133,6 @@ func (controller *TransactionController) BayarTransaction(c *fiber.Ctx) error {
 	}
 
 	jumlah := product.Quantity - transaction.Quantity
-	fmt.Println(jumlah)
 	if jumlah <= 0 {
 		return c.JSON(fiber.Map{
 			"message": "Stok Habis",

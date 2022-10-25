@@ -31,6 +31,7 @@ func CreateTransaction(db *gorm.DB, newTransaction *Transaction) (err error) {
 	return nil
 }
 func ReadTransaction(db *gorm.DB, transactions *[]Transaction) (err error) {
+
 	err = db.Find(transactions).Error
 	if err != nil {
 		return err

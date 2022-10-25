@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
@@ -25,7 +28,7 @@ type LoginForm struct {
 	Password string `form:"password" validate:"required"`
 }
 
-func InitAuthController(s) *LoginController {
+func InitAuthController() *LoginController {
 	db := database.InitDb()
 	// gorm
 	db.AutoMigrate(&models.User{})
@@ -59,11 +62,6 @@ func (controller *LoginController) AddPostedRegister(c *fiber.Ctx) error {
 func (controller *LoginController) LoginPosted(c *fiber.Ctx) error {
 	// load all products
 
-	sess, err := controller.store.Get(c)
-	if err != nil {
-		panic(err)
-	}
-
 	var user models.User
 	var myform LoginForm
 	if err := c.BodyParser(&myform); err != nil {
@@ -78,33 +76,43 @@ func (controller *LoginController) LoginPosted(c *fiber.Ctx) error {
 	// hardcode auth
 	mycompare := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(myform.Password))
 	if mycompare != nil {
-		sess.Set("username", user.Username)
-		sess.Set("userID", user.Id)
-		sess.Save()
+		exp := time.Now().Add(time.Hour * 72)
+		claims := jwt.MapClaims{
+			"id":    user.Id,
+			"name":  user.Name,
+			"admin": true,
+			"exp":   exp.Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+		// Generate encoded token and send it as response.
+		t, err := token.SignedString([]byte("mysecretpassword"))
+		if err != nil {
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
 
 		return c.JSON(fiber.Map{
-			"message": "Login Berhasil",
+			"token":   t,
+			"expired": exp.Format("2006-01-02 15:04:05"),
 		})
 	}
-	return c.JSON(fiber.Map{
-		"message": "User dan password salah",
-	})
+	return c.SendStatus(fiber.StatusUnauthorized)
 
 }
 
-// /profile
+// // /profile
 
-func (controller *LoginController) Profile(c *fiber.Ctx) error {
-	sess, err := controller.store.Get(c)
-	if err != nil {
-		panic(err)
-	}
-	val := sess.Get("username")
+// func (controller *LoginController) Profile(c *fiber.Ctx) error {
+// 	sess, err := controller.store.Get(c)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	val := sess.Get("username")
 
-	return c.JSON(fiber.Map{
-		"username": val,
-	})
-}
+// 	return c.JSON(fiber.Map{
+// 		"username": val,
+// 	})
+// }
 
 func (controller *LoginController) AllUser(c *fiber.Ctx) error {
 	var users []models.User
